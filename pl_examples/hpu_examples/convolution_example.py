@@ -25,6 +25,8 @@ from torchvision.datasets import MNIST
 import pytorch_lightning as pl
 from pytorch_lightning.utilities import _HPU_AVAILABLE
 
+from pytorch_lightning.callbacks import Callback
+
 
 class ConvolutionOnHPU(pl.LightningModule):
     def __init__(self):
@@ -67,6 +69,34 @@ class ConvolutionOnHPU(pl.LightningModule):
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=0.02)
 
+class DataLayoutPlugin(Callback):
+    def __init__(self, model):
+        self.model = model
+
+        #permute the params from filters first (KCRS) to filters last(RSCK) or vice versa.
+        #and permute from RSCK to KCRS is used for checkpoint saving
+        def permute_params(model, to_filters_last):
+            with torch.no_grad():
+                for name, param in model.named_parameters():
+                    if(param.ndim == 4):
+                        if to_filters_last:
+                            param.data = param.data.permute((2, 3, 1, 0))
+                        else:
+                            param.data = param.data.permute((3, 2, 0, 1))  # permute RSCK to KCRS
+        
+        for layer in model.children():
+            if isinstance(layer, nn.Conv1d):
+                print('Found conv1d layer........')
+            
+            elif isinstance(layer, nn.Conv2d):
+                print('Found conv2d layer........')
+                if _HPU_AVAILABLE:
+                    # Gaudi HW performs convolution operations with filter (weights) in filters last format
+                    permute_params(self.model, True)
+            
+            elif isinstance(layer, nn.Conv3d):
+                print('$  Found conv3d layer........')
+
 
 # Init our model
 model = ConvolutionOnHPU()
@@ -78,13 +108,8 @@ train_loader = DataLoader(train_ds, batch_size=32)
 val_loader = DataLoader(val_ds, batch_size=16)
 
 # Initialize a trainer
-trainer = pl.Trainer(accelerator="hpu", max_epochs=1)
-
-if _HPU_AVAILABLE:
-    # Gaudi HW performs convolution operations with filter (weights) in filters last format
-    from pytorch_lightning.utilities.hpu_device import HPUDeviceUtils
-
-    HPUDeviceUtils.permute_params(model, True)
+#trainer = pl.Trainer(accelerator="hpu", max_epochs=1)
+trainer = pl.Trainer(devices=1, accelerator="hpu", max_epochs=3, precision=32, callbacks=[DataLayoutPlugin(model)])
 
 # Train the model ⚡
 trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=val_loader)
