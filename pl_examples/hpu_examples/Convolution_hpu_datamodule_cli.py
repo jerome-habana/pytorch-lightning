@@ -27,6 +27,12 @@ from pytorch_lightning.utilities import _HPU_AVAILABLE
 
 from pytorch_lightning.callbacks import Callback
 
+from jsonargparse import lazy_instance
+from pytorch_lightning.plugins import HPUPrecisionPlugin
+from pytorch_lightning.utilities.cli import LightningCLI
+
+from pytorch_lightning.utilities.hpu_datamodule import HPUDataModule
+
 
 class ConvolutionOnHPU(pl.LightningModule):
     def __init__(self):
@@ -104,15 +110,28 @@ model = ConvolutionOnHPU()
 # Init DataLoader from MNIST Dataset
 train_ds = MNIST(os.getcwd(), train=True, download=True, transform=transforms.ToTensor())
 val_ds = MNIST(os.getcwd(), train=False, transform=transforms.ToTensor())
-train_loader = DataLoader(train_ds, batch_size=32)
-val_loader = DataLoader(val_ds, batch_size=16)
 
-# Initialize a trainer
-#trainer = pl.Trainer(accelerator="hpu", max_epochs=1)
-trainer = pl.Trainer(devices=1, accelerator="hpu", max_epochs=3, precision=32, callbacks=[DataLayoutPlugin(model)])
+data_module = HPUDataModule(train_ds, val_ds)
 
-# Train the model ⚡
-trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=val_loader)
 
-trainer.test(model, val_loader)
-trainer.validate(model, dataloaders=val_loader)
+if __name__ == "__main__":
+    print(f'pl = {pl.__version__}')
+    cli = LightningCLI(
+        ConvolutionOnHPU,
+        trainer_defaults={
+            "accelerator": "hpu",
+            "devices": 1,
+            "max_epochs": 1,
+            "plugins": [
+                lazy_instance(HPUPrecisionPlugin, precision=16), 
+            ],
+            "callbacks": [DataLayoutPlugin(model)],
+        },
+        run=False,
+        save_config_overwrite=True,
+    )
+
+    # Run the model ⚡
+    cli.trainer.fit(model, datamodule=data_module)
+    cli.trainer.validate(model, datamodule=data_module)
+    cli.trainer.test(model, datamodule=data_module)

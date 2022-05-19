@@ -27,6 +27,8 @@ from pytorch_lightning.utilities import _HPU_AVAILABLE
 
 from pytorch_lightning.callbacks import Callback
 
+from pytorch_lightning.utilities.hpu_datamodule import HPUDataModule
+
 
 class ConvolutionOnHPU(pl.LightningModule):
     def __init__(self):
@@ -104,11 +106,13 @@ model = ConvolutionOnHPU()
 # Init DataLoader from MNIST Dataset
 train_ds = MNIST(os.getcwd(), train=True, download=True, transform=transforms.ToTensor())
 val_ds = MNIST(os.getcwd(), train=False, transform=transforms.ToTensor())
-train_loader = DataLoader(train_ds, batch_size=32)
-val_loader = DataLoader(val_ds, batch_size=16)
+
+data_module = HPUDataModule(train_ds, val_ds)
+
+train_loader = data_module.train_dataloader()
+val_loader = data_module.test_dataloader()
 
 # Initialize a trainer
-#trainer = pl.Trainer(accelerator="hpu", max_epochs=1)
 trainer = pl.Trainer(devices=1, accelerator="hpu", max_epochs=3, precision=32, callbacks=[DataLayoutPlugin(model)])
 
 # Train the model ⚡
