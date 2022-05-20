@@ -75,35 +75,6 @@ class ConvolutionOnHPU(pl.LightningModule):
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=0.02)
 
-class DataLayoutPlugin(Callback):
-    def __init__(self, model):
-        self.model = model
-
-        #permute the params from filters first (KCRS) to filters last(RSCK) or vice versa.
-        #and permute from RSCK to KCRS is used for checkpoint saving
-        def permute_params(model, to_filters_last):
-            with torch.no_grad():
-                for name, param in model.named_parameters():
-                    if(param.ndim == 4):
-                        if to_filters_last:
-                            param.data = param.data.permute((2, 3, 1, 0))
-                        else:
-                            param.data = param.data.permute((3, 2, 0, 1))  # permute RSCK to KCRS
-        
-        for layer in model.children():
-            if isinstance(layer, nn.Conv1d):
-                print('Found conv1d layer........')
-            
-            elif isinstance(layer, nn.Conv2d):
-                print('Found conv2d layer........')
-                if _HPU_AVAILABLE:
-                    # Gaudi HW performs convolution operations with filter (weights) in filters last format
-                    permute_params(self.model, True)
-            
-            elif isinstance(layer, nn.Conv3d):
-                print('$  Found conv3d layer........')
-
-
 # Init our model
 model = ConvolutionOnHPU()
 
@@ -125,7 +96,6 @@ if __name__ == "__main__":
             "plugins": [
                 lazy_instance(HPUPrecisionPlugin, precision=16), 
             ],
-            "callbacks": [DataLayoutPlugin(model)],
         },
         run=False,
         save_config_overwrite=True,

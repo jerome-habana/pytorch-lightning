@@ -21,6 +21,7 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader, random_split
 from torchvision import transforms
 from torchvision.datasets import MNIST
+import torchvision
 
 import pytorch_lightning as pl
 from pytorch_lightning.utilities import _HPU_AVAILABLE
@@ -34,8 +35,9 @@ class ConvolutionOnHPU(pl.LightningModule):
     def __init__(self):
         super().__init__()
 
-        self.conv1 = torch.nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1, bias=False)
-        self.l1 = torch.nn.Linear(28 * 28 * 16, 10)
+        self.conv1 = torch.nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1, bias=False)
+        #self.l1 = torch.nn.Linear(28 * 28 * 16, 10)
+        self.l1 = torch.nn.Linear(224 * 224 * 16, 2)
 
     def forward(self, x):
         x = F.relu(self.conv1(x))
@@ -71,41 +73,43 @@ class ConvolutionOnHPU(pl.LightningModule):
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=0.02)
 
-class DataLayoutPlugin(Callback):
-    def __init__(self, model):
-        self.model = model
-
-        #permute the params from filters first (KCRS) to filters last(RSCK) or vice versa.
-        #and permute from RSCK to KCRS is used for checkpoint saving
-        def permute_params(model, to_filters_last):
-            with torch.no_grad():
-                for name, param in model.named_parameters():
-                    if(param.ndim == 4):
-                        if to_filters_last:
-                            param.data = param.data.permute((2, 3, 1, 0))
-                        else:
-                            param.data = param.data.permute((3, 2, 0, 1))  # permute RSCK to KCRS
-        
-        for layer in model.children():
-            if isinstance(layer, nn.Conv1d):
-                print('Found conv1d layer........')
-            
-            elif isinstance(layer, nn.Conv2d):
-                print('Found conv2d layer........')
-                if _HPU_AVAILABLE:
-                    # Gaudi HW performs convolution operations with filter (weights) in filters last format
-                    permute_params(self.model, True)
-            
-            elif isinstance(layer, nn.Conv3d):
-                print('$  Found conv3d layer........')
-
-
 # Init our model
 model = ConvolutionOnHPU()
 
-# Init DataLoader from MNIST Dataset
-train_ds = MNIST(os.getcwd(), train=True, download=True, transform=transforms.ToTensor())
-val_ds = MNIST(os.getcwd(), train=False, transform=transforms.ToTensor())
+#imagenet dataset
+def load_data(traindir, valdir):
+    # Data loading code
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+
+    dataset = torchvision.datasets.ImageFolder(
+        traindir,
+        transforms.Compose([
+            transforms.RandomResizedCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize,
+        ]))
+    
+    dataset_test = torchvision.datasets.ImageFolder(
+        valdir,
+        transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            normalize,
+        ]))
+
+    print("Creating data loaders")
+    train_sampler = torch.utils.data.RandomSampler(dataset)
+    test_sampler = torch.utils.data.SequentialSampler(dataset_test)
+
+    return dataset, dataset_test
+
+data_path = '/software/data/pytorch/imagenet/ILSVRC2012/'
+train_dir = os.path.join(data_path, 'train')
+val_dir = os.path.join(data_path, 'val')
+train_ds, val_ds = load_data(train_dir, val_dir)
 
 data_module = HPUDataModule(train_ds, val_ds)
 
@@ -113,7 +117,7 @@ train_loader = data_module.train_dataloader()
 val_loader = data_module.test_dataloader()
 
 # Initialize a trainer
-trainer = pl.Trainer(devices=1, accelerator="hpu", max_epochs=3, precision=32, callbacks=[DataLayoutPlugin(model)])
+trainer = pl.Trainer(devices=1, accelerator="hpu", max_epochs=3, precision=32)
 
 # Train the model ⚡
 trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=val_loader)
