@@ -36,7 +36,6 @@ class ConvolutionOnHPU(pl.LightningModule):
         super().__init__()
 
         self.conv1 = torch.nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1, bias=False)
-        #self.l1 = torch.nn.Linear(28 * 28 * 16, 10)
         self.l1 = torch.nn.Linear(224 * 224 * 16, 2)
 
     def forward(self, x):
@@ -113,14 +112,9 @@ train_ds, val_ds = load_data(train_dir, val_dir)
 
 data_module = HPUDataModule(train_ds, val_ds)
 
-train_loader = data_module.train_dataloader()
-val_loader = data_module.test_dataloader()
-
 # Initialize a trainer
 trainer = pl.Trainer(devices=1, accelerator="hpu", max_epochs=3, precision=32)
 
-# Train the model ⚡
-trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=val_loader)
-
-trainer.test(model, val_loader)
-trainer.validate(model, dataloaders=val_loader)
+trainer.fit(model, datamodule=data_module)
+trainer.test(model, datamodule=data_module)
+trainer.validate(model, datamodule=data_module)
