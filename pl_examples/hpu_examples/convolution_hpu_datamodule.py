@@ -14,6 +14,7 @@
 
 import os
 import sys
+import argparse
 
 import torch
 from torch import nn
@@ -100,21 +101,29 @@ def load_data(traindir, valdir):
         ]))
 
     print("Creating data loaders")
-    train_sampler = torch.utils.data.RandomSampler(dataset)
-    test_sampler = torch.utils.data.SequentialSampler(dataset_test)
 
     return dataset, dataset_test
 
-data_path = '/software/data/pytorch/imagenet/ILSVRC2012/'
-train_dir = os.path.join(data_path, 'train')
-val_dir = os.path.join(data_path, 'val')
-train_ds, val_ds = load_data(train_dir, val_dir)
+def main(args):
 
-data_module = HPUDataModule(train_ds, val_ds)
+    data_path = args.data_path
+    train_dir = os.path.join(data_path, 'train')
+    val_dir = os.path.join(data_path, 'val')
+    train_ds, val_ds = load_data(train_dir, val_dir)
 
-# Initialize a trainer
-trainer = pl.Trainer(devices=1, accelerator="hpu", max_epochs=3, precision=32)
+    data_module = HPUDataModule(train_ds, val_ds)
 
-trainer.fit(model, datamodule=data_module)
-trainer.test(model, datamodule=data_module)
-trainer.validate(model, datamodule=data_module)
+    # Initialize a trainer
+    trainer = pl.Trainer(devices=1, accelerator="hpu", max_epochs=1, precision=32)
+
+    trainer.fit(model, datamodule=data_module)
+    trainer.test(model, datamodule=data_module)
+    trainer.validate(model, datamodule=data_module)
+
+if __name__ == '__main__':
+    
+    parser = argparse.ArgumentParser(description='PyLight ImageNet Training')
+    parser.add_argument('--data-path', default='/software/data/pytorch/imagenet/ILSVRC2012/', help='dataset')
+    args = parser.parse_args()
+    
+    main(args)
