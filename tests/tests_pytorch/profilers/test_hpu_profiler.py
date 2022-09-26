@@ -16,6 +16,7 @@ import glob
 import json
 import os
 import shutil
+import torch.distributed
 
 import pytest
 
@@ -42,6 +43,11 @@ class TestHPUProfiler:
         assert hpus <= HPUAccelerator.auto_device_count(), "More hpu devices asked than present"
         assert hpus == 1 or hpus % 8 == 0
         return hpus
+
+    @pytest.fixture
+    def check_distributed(self, get_device_count):
+        if get_device_count <= 1:
+            pytest.skip("Distributed test does not run on single HPU")
 
     @RunIf(hpu=True)
     def test_hpu_simple_profiler_instances(self, tmpdir, get_device_count):
@@ -100,6 +106,92 @@ class TestHPUProfiler:
         assert actual == expected
         for file in list(os.listdir(profiler.dirpath)):
             assert os.path.getsize(os.path.join(profiler.dirpath, file)) > 0
+
+    @RunIf(hpu=True)
+    @pytest.mark.usefixtures('check_distributed')
+    def test_simple_profiler_distributed_files(self, tmpdir, get_device_count):
+        """Ensure the proper files are saved in distributed."""
+        profiler = SimpleProfiler(dirpath="profiler_logs", filename="profiler")
+        model = BoringModel()
+        trainer = Trainer(
+            default_root_dir=tmpdir,
+            max_epochs=1,
+            strategy="hpu_parallel",
+            accelerator="hpu",
+            devices=get_device_count,
+            profiler=profiler,
+            logger=False,
+        )
+        trainer.fit(model)
+        trainer.validate(model)
+        trainer.test(model)
+
+        expected = {
+            f"{stage}-profiler-{rank}.txt"
+            for stage in ("fit", "validate", "test")
+            for rank in range(0, trainer.num_devices)
+        }
+
+        # Wait till all hpus have finished.
+        # assert fail before a torch.distributed.barrier() keeps the barrier waiting on a process that has returned, causing the test to hang.
+        # Do assert checks after the torch.distributed.barrier()
+        assert_fail = ''
+        torch.distributed.barrier()
+        try:
+            if trainer.local_rank == 0:
+                actual = set(os.listdir(profiler.dirpath))
+                assert actual == expected
+                for profilerfile in os.listdir(profiler.dirpath):
+                    with open(os.path.join(profiler.dirpath, profilerfile), 'r', encoding='utf-8') as pf:
+                        assert len(pf.read()) != 0
+        except AssertionError as ae:
+            assert_fail = ae
+        finally:
+            torch.distributed.barrier()
+            assert(assert_fail == '')
+
+    @RunIf(hpu=True)
+    @pytest.mark.usefixtures('check_distributed')
+    def test_advanced_profiler_distributed_files(self, tmpdir, get_device_count):
+        """Ensure the proper files are saved in distributed."""
+        profiler = AdvancedProfiler(dirpath="profiler_logs", filename="profiler")
+        model = BoringModel()
+        trainer = Trainer(
+            default_root_dir=tmpdir,
+            max_epochs=1,
+            strategy="hpu_parallel",
+            accelerator="hpu",
+            devices=get_device_count,
+            profiler=profiler,
+            logger=False,
+        )
+        trainer.fit(model)
+        trainer.validate(model)
+        trainer.test(model)
+
+        expected = {
+            f"{stage}-profiler-{rank}.txt"
+            for stage in ("fit", "validate", "test")
+            for rank in range(0, trainer.num_devices)
+        }
+
+        # Wait till all hpus have finished.
+        # assert fail before a torch.distributed.barrier() keeps the barrier waiting on a process that has returned, causing the test to hang.
+        # Do assert checks after the torch.distributed.barrier()
+        assert_fail = ''
+        torch.distributed.barrier()
+        try:
+            if trainer.local_rank == 0:
+                actual = set(os.listdir(profiler.dirpath))
+                assert actual == expected
+                for profilerfile in os.listdir(profiler.dirpath):
+                    with open(os.path.join(profiler.dirpath, profilerfile), 'r', encoding='utf-8') as pf:
+                        assert len(pf.read()) != 0
+        except AssertionError as ae:
+            assert_fail = ae
+        finally:
+            torch.distributed.barrier()
+            assert(assert_fail == '')
 
     @RunIf(hpu=True)
     def test_hpu_pytorch_profiler_instances(tmpdir):
