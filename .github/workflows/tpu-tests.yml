@@ -67,7 +67,7 @@ jobs:
        cat dockers/tpu-tests/tpu_test_cases.jsonnet
       shell: bash
 
-    - uses: google-github-actions/auth@v0
+    - uses: google-github-actions/auth@v1
       with:
         credentials_json: ${{ secrets.GKE_SA_KEY_BASE64 }}
 
