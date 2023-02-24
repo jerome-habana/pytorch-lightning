@@ -1,4 +1,4 @@
-# Copyright The Lightning AI team.
+# Copyright The PyTorch Lightning team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,10 +17,10 @@ from typing import Any, Dict, Optional
 
 import torch
 
-from lightning.fabric.plugins import TorchCheckpointIO
-from lightning.fabric.utilities import move_data_to_device
-from lightning.fabric.utilities.cloud_io import _atomic_save, get_filesystem
-from lightning.fabric.utilities.types import _PATH
+from lightning_fabric.plugins import TorchCheckpointIO
+from lightning_fabric.utilities import move_data_to_device
+from lightning_fabric.utilities.cloud_io import _atomic_save, get_filesystem
+from lightning_fabric.utilities.types import _PATH
 
 
 class HPUCheckpointIO(TorchCheckpointIO):

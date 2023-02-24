@@ -504,6 +504,7 @@ def test_setup_dataloaders_replace_standard_sampler(shuffle, strategy):
         pytest.param("tpu", "xla:0", marks=RunIf(tpu=True, standalone=True)),
         pytest.param("mps", "mps:0", marks=RunIf(mps=True)),
         pytest.param("gpu", "mps:0", marks=RunIf(mps=True)),
+        pytest.param("hpu", "hpu:0", marks=RunIf(hpu=True)),
     ],
 )
 @mock.patch.dict(os.environ, os.environ.copy(), clear=True)

@@ -28,12 +28,13 @@ from tests_fabric.helpers.runif import RunIf
 import lightning.fabric
 from lightning.fabric import Fabric
 from lightning.fabric.accelerators import TPUAccelerator
+from lightning.fabric.accelerators import HPUAccelerator
 from lightning.fabric.accelerators.accelerator import Accelerator
 from lightning.fabric.accelerators.cpu import CPUAccelerator
 from lightning.fabric.accelerators.cuda import CUDAAccelerator
 from lightning.fabric.accelerators.mps import MPSAccelerator
 from lightning.fabric.connector import _Connector
-from lightning.fabric.plugins import DoublePrecision, MixedPrecision, Precision, TPUPrecision
+from lightning.fabric.plugins import DoublePrecision, MixedPrecision, Precision, TPUPrecision, HPUPrecision
 from lightning.fabric.plugins.environments import (
     KubeflowEnvironment,
     LightningEnvironment,
@@ -50,6 +51,8 @@ from lightning.fabric.strategies import (
     SingleDeviceStrategy,
     SingleTPUStrategy,
     XLAStrategy,
+    SingleHPUStrategy,
+    HPUParallelStrategy,
 )
 from lightning.fabric.strategies.ddp import _DDP_FORK_ALIASES
 from lightning.fabric.strategies.launchers.subprocess_script import _SubprocessScriptLauncher
@@ -67,6 +70,7 @@ def test_accelerator_choice_cpu():
 @pytest.mark.parametrize(
     ["accelerator", "devices"], [("tpu", "auto"), ("tpu", 1), ("tpu", [1]), ("tpu", 8), ("auto", 1), ("auto", 8)]
 )
+
 @mock.patch.dict(os.environ, os.environ.copy(), clear=True)
 def test_accelerator_choice_tpu(accelerator, devices):
     connector = _Connector(accelerator=accelerator, devices=devices)
@@ -78,6 +82,19 @@ def test_accelerator_choice_tpu(accelerator, devices):
     else:
         assert isinstance(connector.strategy, SingleTPUStrategy)
 
+@RunIf(hpu=True, standalone=True)
+@pytest.mark.parametrize(
+    ["accelerator", "devices"], [("hpu", None), ("hpu", 1), ("hpu", [1]), ("hpu", 8), ("auto", 1), ("auto", 8)]
+)
+
+@mock.patch.dict(os.environ, os.environ.copy(), clear=True)
+def test_accelerator_choice_hpu(accelerator, devices):
+    connector = _Connector(accelerator=accelerator, devices=devices)
+    assert isinstance(connector.accelerator, HPUAccelerator)
+    if devices is None or (isinstance(devices, int) and devices > 1):
+        assert isinstance(connector.strategy, HPUParallelStrategy)
+    else:
+        assert isinstance(connector.strategy, SingleHPUStrategy)
 
 @RunIf(skip_windows=True, standalone=True)
 def test_strategy_choice_ddp_on_cpu():
@@ -327,6 +344,11 @@ def test_tpu_accelerator_can_not_run_on_system():
     with pytest.raises(RuntimeError, match="TPUAccelerator` can not run on your system"):
         _Connector(accelerator="tpu", devices=8)
 
+@pytest.mark.skipif(HPUAccelerator.is_available(), reason="test requires missing HPU")
+@mock.patch("lightning.fabric.accelerators.hpu._HPU_AVAILABLE", True)
+def test_hpu_accelerator_can_not_run_on_system():
+    with pytest.raises(RuntimeError, match="HPUAccelerator` can not run on your system"):
+        _Connector(accelerator="hpu", devices=8)
 
 @mock.patch("lightning.fabric.accelerators.cuda.num_cuda_devices", return_value=2)
 @pytest.mark.parametrize("device_count", (["0"], [0, "1"], ["GPU"], [["0", "1"], [0, 1]], [False]))
@@ -336,6 +358,16 @@ def test_accelererator_invalid_type_devices(_, device_count):
     ):
         _ = _Connector(accelerator="gpu", devices=device_count)
 
+@RunIf(hpu=True)
+def test_accelerator_hpu():
+    connector = _Connector(accelerator="hpu", devices=1)
+    assert isinstance(connector.accelerator, HPUAccelerator)
+
+    connector = _Connector(accelerator="hpu")
+    assert isinstance(connector.accelerator, HPUAccelerator)
+
+    connector = _Connector(accelerator="auto", devices=1)
+    assert isinstance(connector.accelerator, HPUAccelerator)
 
 @RunIf(min_cuda_gpus=1)
 def test_accelerator_gpu():
@@ -357,6 +389,16 @@ def test_accelerator_cpu_with_devices(devices, strategy_class):
     assert isinstance(connector.accelerator, CPUAccelerator)
 
 
+@RunIf(hpu=True)
+@pytest.mark.parametrize(
+    ["devices", "strategy_class"], [(1, SingleHPUStrategy), ([1], SingleHPUStrategy), (8, HPUParallelStrategy), ([8], HPUParallelStrategy)]
+)
+def test_accelerator_hpu_with_devices(devices, strategy_class):
+    connector = _Connector(accelerator="hpu", devices=devices)
+    assert len(connector._parallel_devices) == len(devices) if isinstance(devices, list) else devices
+    assert isinstance(connector.strategy, strategy_class)
+    assert isinstance(connector.accelerator, HPUAccelerator)
+
 @RunIf(min_cuda_gpus=2)
 @pytest.mark.parametrize(
     ["devices", "strategy_class"], [(1, SingleDeviceStrategy), ([1], SingleDeviceStrategy), (2, DDPStrategy)]
@@ -366,7 +408,6 @@ def test_accelerator_gpu_with_devices(devices, strategy_class):
     assert len(connector._parallel_devices) == len(devices) if isinstance(devices, list) else devices
     assert isinstance(connector.strategy, strategy_class)
     assert isinstance(connector.accelerator, CUDAAccelerator)
-
 
 @RunIf(min_cuda_gpus=1)
 def test_accelerator_auto_with_devices_gpu():
@@ -722,7 +763,7 @@ def test_plugin_only_one_instance_for_one_type(plugins, expected):
         _Connector(plugins=plugins)
 
 
-@pytest.mark.parametrize("accelerator", ("cpu", "cuda", "mps", "tpu"))
+@pytest.mark.parametrize("accelerator", ("cpu", "cuda", "mps", "tpu", "hpu"))
 @pytest.mark.parametrize("devices", ("0", 0, []))
 def test_passing_zero_and_empty_list_to_devices_flag(accelerator, devices):
     with pytest.raises(ValueError, match="value is not a valid input using"):
@@ -734,6 +775,7 @@ def test_passing_zero_and_empty_list_to_devices_flag(accelerator, devices):
     [
         pytest.param("cuda", CUDAAccelerator, marks=RunIf(min_cuda_gpus=1)),
         pytest.param("mps", MPSAccelerator, marks=RunIf(mps=True)),
+        pytest.param("hpu", HPUAccelerator, marks=RunIf(hpu=True)),
     ],
 )
 def test_gpu_accelerator_backend_choice(expected_accelerator_flag, expected_accelerator_class):
@@ -834,6 +876,7 @@ def test_precision_from_environment(_, precision):
         ("cpu", None, CPUAccelerator, SingleDeviceStrategy),
         ("cpu", "ddp", CPUAccelerator, DDPStrategy),
         pytest.param("mps", None, MPSAccelerator, SingleDeviceStrategy, marks=RunIf(mps=True)),
+        pytest.param("hpu", None, HPUAccelerator, SingleHPUStrategy, HPUParallelStrategy, marks=RunIf(hpu=True)),
         pytest.param("cuda", "dp", CUDAAccelerator, DataParallelStrategy, marks=RunIf(min_cuda_gpus=1)),
         pytest.param(
             "cuda", "deepspeed", CUDAAccelerator, DeepSpeedStrategy, marks=RunIf(min_cuda_gpus=1, deepspeed=True)

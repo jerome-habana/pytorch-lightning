@@ -21,6 +21,7 @@ from typing_extensions import get_args
 from lightning.fabric.accelerators import ACCELERATOR_REGISTRY
 from lightning.fabric.accelerators.accelerator import Accelerator
 from lightning.fabric.accelerators.cuda import CUDAAccelerator
+from lightning.fabric.accelerators.hpu import HPUAccelerator
 from lightning.fabric.accelerators.mps import MPSAccelerator
 from lightning.fabric.accelerators.tpu import TPUAccelerator
 from lightning.fabric.plugins import (
@@ -30,6 +31,7 @@ from lightning.fabric.plugins import (
     Precision,
     TPUBf16Precision,
     TPUPrecision,
+    HPUPrecision,
 )
 from lightning.fabric.plugins.environments import (
     ClusterEnvironment,
@@ -57,6 +59,8 @@ from lightning.fabric.strategies import (
     Strategy,
     STRATEGY_REGISTRY,
     XLAStrategy,
+    HPUParallelStrategy,
+    SingleHPUStrategy,
 )
 from lightning.fabric.strategies.ddp import _DDP_FORK_ALIASES
 from lightning.fabric.strategies.fsdp import _FSDP_ALIASES, FSDPStrategy
@@ -318,6 +322,8 @@ class _Connector:
             return "mps"
         if CUDAAccelerator.is_available():
             return "cuda"
+        if HPUAccelerator.is_available():
+            return "hpu"
         return "cpu"
 
     @staticmethod
@@ -380,6 +386,11 @@ class _Connector:
             else:
                 # TODO: lazy initialized device, then here could be self._strategy_flag = "single_tpu_device"
                 return SingleTPUStrategy(device=self._parallel_devices[0])  # type: ignore
+        if self._accelerator_flag == "hpu":
+            if self._parallel_devices and len(self._parallel_devices) > 1:
+                return HPUParallelStrategy.strategy_name
+            else:
+                return SingleHPUStrategy(device=torch.device("hpu"))
         if self._num_nodes_flag > 1:
             return "ddp"
         if len(self._parallel_devices) <= 1:
@@ -448,6 +459,9 @@ class _Connector:
         if isinstance(self.strategy, DeepSpeedStrategy):
             return DeepSpeedPrecision(self._precision_input)  # type: ignore
 
+        if isinstance(self.accelerator, HPUAccelerator):
+            return HPUPrecision(self._precision_input)  # type: ignore
+
         if self._precision_input == "32-true":
             return Precision()
         if self._precision_input == "64-true":
@@ -489,6 +503,13 @@ class _Connector:
                     f" found: {self._precision_instance}."
                 )
 
+        if isinstance(self.accelerator, HPUAccelerator):
+            if self._precision_flag not in ("bf16", "32"):
+                raise ValueError(
+                    f"The `HPUAccelerator` can only be used with a `HPUPrecision` plugin,"
+                    f" found: {self._precision_instance}."
+                )
+
     def _lazy_init_strategy(self) -> None:
         """Lazily set missing attributes on the previously instantiated strategy."""
         self.strategy.accelerator = self.accelerator
@@ -527,6 +548,14 @@ class _Connector:
         ):
             raise ValueError(
                 "The `TPUAccelerator` can only be used with a `SingleTPUStrategy` or `XLAStrategy`,"
+                f" found {self.strategy.__class__.__name__}."
+            )
+
+        if isinstance(self.accelerator, HPUAccelerator) and not isinstance(
+            self.strategy, (SingleHPUStrategy, HPUParallelStrategy)
+        ):
+            raise ValueError(
+                "The `HPUAccelerator` can only be used with a `SingleHPUStrategy` or `HPUParallelStrategy`,"
                 f" found {self.strategy.__class__.__name__}."
             )
 

@@ -36,3 +36,4 @@ class _AcceleratorType(LightningEnum):
     CUDA = "CUDA"
     TPU = "TPU"
     MPS = "MPS"
+    HPU = "HPU"
