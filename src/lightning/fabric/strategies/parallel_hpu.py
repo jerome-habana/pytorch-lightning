@@ -60,6 +60,7 @@ class HPUParallelStrategy(DDPStrategy):
         if not _HPU_AVAILABLE:
             raise ValueError("`HPUParallelStrategy` requires HPU devices to run")
 
+        self._process_group_backend: Optional[str] = "hccl"
         super().__init__(
             accelerator=accelerator,
             parallel_devices=parallel_devices,
@@ -82,6 +83,10 @@ class HPUParallelStrategy(DDPStrategy):
     @checkpoint_io.setter
     def checkpoint_io(self, io: Optional[CheckpointIO]) -> None:
         self._checkpoint_io = io
+
+    @property
+    def process_group_backend(self) -> Optional[str]:
+        return self._process_group_backend
 
     def setup_environment(self) -> None:
 

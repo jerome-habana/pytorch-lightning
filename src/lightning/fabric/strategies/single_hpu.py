@@ -41,7 +41,7 @@ class SingleHPUStrategy(SingleDeviceStrategy):
         device: _DEVICE = "hpu",
         accelerator: Optional[Accelerator] = None,
         checkpoint_io: Optional[CheckpointIO] = None,
-        precision_plugin: Optional[HPUPrecision] = None,
+        precision: Optional[HPUPrecision] = None,
     ):
 
         if not _HPU_AVAILABLE:
@@ -51,7 +51,7 @@ class SingleHPUStrategy(SingleDeviceStrategy):
             accelerator=accelerator,
             device=device,
             checkpoint_io=checkpoint_io,
-            precision_plugin=precision_plugin,
+            precision=precision,
         )
 
     @property

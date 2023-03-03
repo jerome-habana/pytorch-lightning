@@ -17,16 +17,15 @@ from tests_fabric.helpers.runif import RunIf
 
 from lightning.fabric.accelerators.hpu import HPUAccelerator
 
-
+@RunIf(hpu=True)
 def test_auto_device_count():
     assert HPUAccelerator.auto_device_count() == 8
-
 
 @RunIf(hpu=True)
 def test_availability():
     assert HPUAccelerator.is_available()
 
-
+@RunIf(hpu=True)
 def test_init_device_with_wrong_device_type():
     with pytest.raises(ValueError, match="Device should be HPU"):
         HPUAccelerator().setup_device(torch.device("cpu"))
@@ -40,5 +39,6 @@ def test_init_device_with_wrong_device_type():
     ],
 )
 
+@RunIf(hpu=True)
 def test_get_parallel_devices(devices, expected):
     assert HPUAccelerator.get_parallel_devices(devices) == expected
