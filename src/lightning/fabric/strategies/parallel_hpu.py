@@ -22,6 +22,7 @@ import torch.distributed
 from torch.nn import Module
 
 from lightning.fabric.accelerators import Accelerator
+from lightning.fabric.accelerators import HPUAccelerator
 from lightning.fabric.plugins import CheckpointIO
 from lightning.fabric.plugins.collectives.torch_collective import default_pg_timeout
 from lightning.fabric.plugins.environments.cluster_environment import ClusterEnvironment
@@ -47,7 +48,7 @@ class HPUParallelStrategy(DDPStrategy):
     def __init__(
         self,
         accelerator: Optional[Accelerator] = None,
-        parallel_devices: Optional[List[torch.device]] = None,
+        parallel_devices: Optional[List[torch.device]] = [torch.device("hpu")] * HPUAccelerator.auto_device_count(),
         cluster_environment: Optional[ClusterEnvironment] = None,
         checkpoint_io: Optional[CheckpointIO] = None,
         precision: Optional[HPUPrecision] = None,

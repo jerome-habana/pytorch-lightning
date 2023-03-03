@@ -1,37 +1,31 @@
-from unittest.mock import Mock
+# Copyright The Lightning AI team.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-import pytest
 import torch
-from tests_fabric.helpers.models import BoringFabric
+from lightning.fabric.accelerators import HPUAccelerator
 from tests_fabric.helpers.runif import RunIf
 
 from lightning.fabric.strategies.parallel_hpu import HPUParallelStrategy
 from lightning.fabric.strategies.single_hpu import SingleHPUStrategy
-from lightning.fabric.wrappers import _FabricModule, _FabricOptimizer
 
 @RunIf(hpu=True)
 def test_single_device_default_device():
     assert SingleHPUStrategy().root_device == torch.device("hpu")
 
 @RunIf(hpu=True)
-@pytest.mark.parametrize(
-    ["process_group_backend", "device_str", "expected_process_group_backend"],
-    [
-        pytest.param(None, "hpu:0", "hccl"),
-        #pytest.param(None, "cpu", "gloo"),
-    ],
-)
-def test_hpu_parallel_process_group_backend(process_group_backend, device_str, expected_process_group_backend):
-    """Test settings for process group backend."""
-
-    class MockHPUParallelStrategyStrategy(HPUParallelStrategy):
-        def __init__(self, root_device, process_group_backend):
-            self._root_device = root_device
-            super().__init__(process_group_backend=process_group_backend)
-
-        @property
-        def root_device(self):
-            return self._root_device
-
-    strategy = MockHPUParallelStrategyStrategy(process_group_backend=process_group_backend, root_device=torch.device(device_str))
-    assert strategy._get_process_group_backend() == expected_process_group_backend
+def test_hpu_parallel_strategy_defaults():
+    """Test that the DeepSpeed strategy raises an exception if an invalid accelerator is used."""
+    strategy = HPUParallelStrategy()
+    assert strategy.process_group_backend == "hccl"
+    assert len(strategy.parallel_devices) == HPUAccelerator.auto_device_count()
