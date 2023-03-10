@@ -21,6 +21,7 @@ import torch
 from lightning_utilities.core.imports import compare_version
 from packaging.version import Version
 
+from lightning.fabric.accelerators import HPUAccelerator
 from lightning.fabric.accelerators import TPUAccelerator
 from lightning.fabric.accelerators.cuda import num_cuda_devices
 from lightning.fabric.accelerators.mps import MPSAccelerator
@@ -45,6 +46,7 @@ class RunIf:
         min_python: Optional[str] = None,
         bf16_cuda: bool = False,
         tpu: bool = False,
+        hpu: bool = False,
         mps: Optional[bool] = None,
         skip_windows: bool = False,
         standalone: bool = False,
@@ -60,6 +62,7 @@ class RunIf:
             min_python: Require that Python is greater or equal than this version.
             bf16_cuda: Require that CUDA device supports bf16.
             tpu: Require that TPU is available.
+            hpu: Require that HPU is available.
             mps: If True: Require that MPS (Apple Silicon) is available,
                 if False: Explicitly Require that MPS is not available
             skip_windows: Skip for Windows platform.
@@ -115,6 +118,10 @@ class RunIf:
             reasons.append("TPU")
             # used in conftest.py::pytest_collection_modifyitems
             kwargs["tpu"] = True
+
+        if hpu:
+            conditions.append(not HPUAccelerator.is_available())
+            reasons.append("HPU")
 
         if mps is not None:
             if mps:
