@@ -22,7 +22,7 @@ if _HPU_AVAILABLE:
     from habana_frameworks.torch.hpex import hmp
 
 _PRECISION_INPUT_INT = Literal[32]
-_PRECISION_INPUT_STR = Literal["32", "bf16"]
+_PRECISION_INPUT_STR = Literal["32", "bf16", "32-true", "bf16-mixed"]
 _PRECISION_INPUT = Union[_PRECISION_INPUT_INT, _PRECISION_INPUT_STR]
 
 
@@ -50,7 +50,7 @@ class HPUPrecision(Precision):
         supported_precision = get_args(_PRECISION_INPUT_STR) + get_args(_PRECISION_INPUT_INT)
         if precision not in supported_precision:
             raise ValueError(
-                f"`Trainer(accelerator='hpu', precision={precision!r})` is not supported."
+                f"`Fabric(accelerator='hpu', precision={precision!r})` is not supported."
                 f" `precision` must be one of: {supported_precision}."
             )
         self.precision = cast(_PRECISION_INPUT_STR, str(precision))

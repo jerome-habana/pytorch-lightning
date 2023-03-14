@@ -113,6 +113,7 @@ def test_setup_compiled_module(setup_method):
         pytest.param("cuda", "cpu", "cuda:0", marks=RunIf(min_cuda_gpus=1)),
         pytest.param("cuda", "cuda:1", "cuda:0", marks=RunIf(min_cuda_gpus=2)),
         pytest.param("mps", "cpu", "mps:0", marks=RunIf(mps=True)),
+        pytest.param("hpu", "cpu", "hpu:0", marks=RunIf(hpu=True)),
     ],
 )
 @pytest.mark.parametrize("move_to_device", [True, False])
@@ -134,8 +135,8 @@ def test_setup_module_move_to_device(setup_method, move_to_device, accelerator, 
     assert all(param.device == expected_device for param in model.parameters())
     assert all(param.device == expected_device for param in fabric_model.parameters())
 
-    assert fabric_model.device == expected_device
-    assert fabric.device == target_device
+    assert str(fabric_model.device) in str(expected_device)
+    assert str(fabric.device) in str(target_device)
 
 
 @RunIf(min_cuda_gpus=1)

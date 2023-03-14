@@ -504,11 +504,17 @@ class _Connector:
                 )
 
         if isinstance(self.accelerator, HPUAccelerator):
-            if self._precision_flag not in ("bf16", "32"):
+            if self._precision_input not in ("bf16-mixed", "32-true", "bf16", "32"):
+                raise ValueError(
+                    f"The `HPUAccelerator` can only be used with bf16 or 32"
+                    f" found: {self._precision_input}."
+                )
+            if self._precision_instance and not isinstance(self._precision_instance, HPUPrecision):
                 raise ValueError(
                     f"The `HPUAccelerator` can only be used with a `HPUPrecision` plugin,"
                     f" found: {self._precision_instance}."
                 )
+
 
     def _lazy_init_strategy(self) -> None:
         """Lazily set missing attributes on the previously instantiated strategy."""
