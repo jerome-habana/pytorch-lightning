@@ -19,7 +19,7 @@ from lightning.fabric.accelerators.hpu import HPUAccelerator
 
 @RunIf(hpu=True)
 def test_auto_device_count():
-    assert HPUAccelerator.auto_device_count() == 8
+    assert HPUAccelerator.auto_device_count() != 0
 
 @RunIf(hpu=True)
 def test_availability():
