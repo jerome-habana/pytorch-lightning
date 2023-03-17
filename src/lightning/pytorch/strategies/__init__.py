@@ -16,6 +16,7 @@ from lightning.pytorch.strategies.ddp import DDPStrategy  # noqa: F401
 from lightning.pytorch.strategies.deepspeed import DeepSpeedStrategy  # noqa: F401
 from lightning.pytorch.strategies.fsdp import FSDPStrategy  # noqa: F401
 from lightning.pytorch.strategies.hpu_parallel import HPUParallelStrategy  # noqa: F401
+from lightning.pytorch.strategies.hpu_deepspeed import HPUDeepSpeedStrategy  # noqa: F401
 from lightning.pytorch.strategies.ipu import IPUStrategy  # noqa: F401
 from lightning.pytorch.strategies.parallel import ParallelStrategy  # noqa: F401
 from lightning.pytorch.strategies.single_device import SingleDeviceStrategy  # noqa: F401

@@ -30,6 +30,7 @@ from lightning.pytorch.accelerators.tpu import TPUAccelerator
 from lightning.pytorch.callbacks.progress.rich_progress import _RICH_AVAILABLE
 from lightning.pytorch.core.module import _ONNX_AVAILABLE
 from lightning.pytorch.strategies.deepspeed import _DEEPSPEED_AVAILABLE
+from lightning.pytorch.strategies.hpu_deepspeed import _HPU_DEEPSPEED_AVAILABLE
 from lightning.pytorch.utilities.imports import _OMEGACONF_AVAILABLE
 
 _SKLEARN_AVAILABLE = RequirementCache("scikit-learn")
@@ -48,6 +49,7 @@ def _RunIf(
     skip_windows: bool = False,
     standalone: bool = False,
     deepspeed: bool = False,
+    hpu_deepspeed: bool = False,
     rich: bool = False,
     omegaconf: bool = False,
     psutil: bool = False,
@@ -78,6 +80,7 @@ def _RunIf(
         standalone: Mark the test as standalone, our CI will run it in a separate process.
             This requires that the ``PL_RUN_STANDALONE_TESTS=1`` environment variable is set.
         deepspeed: Require that microsoft/DeepSpeed is installed.
+        hpu_deepspeed: Require that habana/DeepSpeed is installed.
         rich: Require that willmcgugan/rich is installed.
         omegaconf: Require that omry/omegaconf is installed.
         psutil: Require that psutil is installed.
@@ -163,6 +166,10 @@ def _RunIf(
     if deepspeed:
         conditions.append(not _DEEPSPEED_AVAILABLE)
         reasons.append("Deepspeed")
+
+    if hpu_deepspeed:
+        conditions.append(not _HPU_DEEPSPEED_AVAILABLE)
+        reasons.append("HPUDeepspeed")
 
     if rich:
         conditions.append(not _RICH_AVAILABLE)

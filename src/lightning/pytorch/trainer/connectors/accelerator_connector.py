@@ -56,6 +56,7 @@ from lightning.pytorch.strategies import (
     DDPStrategy,
     DeepSpeedStrategy,
     FSDPStrategy,
+    HPUDeepSpeedStrategy,
     HPUParallelStrategy,
     IPUStrategy,
     ParallelStrategy,
@@ -415,7 +416,11 @@ class _AcceleratorConnector:
             return IPUStrategy.strategy_name
         if self._accelerator_flag == "hpu":
             if self._parallel_devices and len(self._parallel_devices) > 1:
-                return HPUParallelStrategy.strategy_name
+                if self._strategy_flag == "deepspeed":
+                    self._strategy_flag = "hpu_deepspeed"
+                    return HPUDeepSpeedStrategy.strategy_name
+                else:
+                    return HPUParallelStrategy.strategy_name
             else:
                 return SingleHPUStrategy(device=torch.device("hpu"))
         if self._accelerator_flag == "tpu":
@@ -478,7 +483,7 @@ class _AcceleratorConnector:
 
         if isinstance(self.accelerator, IPUAccelerator):
             return IPUPrecisionPlugin(self._precision_flag)  # type: ignore
-        if isinstance(self.accelerator, HPUAccelerator):
+        if isinstance(self.accelerator, HPUAccelerator) and not isinstance(self.strategy, HPUDeepSpeedStrategy):
             return HPUPrecisionPlugin(self._precision_flag)  # type: ignore
         if isinstance(self.accelerator, TPUAccelerator):
             if self._precision_flag == "32-true":
@@ -497,7 +502,7 @@ class _AcceleratorConnector:
             if isinstance(self.strategy, ColossalAIStrategy):
                 return ColossalAIPrecisionPlugin(self._precision_flag)
 
-        if isinstance(self.strategy, DeepSpeedStrategy):
+        if isinstance(self.strategy, DeepSpeedStrategy) or isinstance(self.strategy, HPUDeepSpeedStrategy):
             return DeepSpeedPrecisionPlugin(self._precision_flag)
 
         if self._precision_flag == "32-true":
@@ -590,10 +595,10 @@ class _AcceleratorConnector:
             )
 
         if isinstance(self.accelerator, HPUAccelerator) and not isinstance(
-            self.strategy, (SingleHPUStrategy, HPUParallelStrategy)
+            self.strategy, (SingleHPUStrategy, HPUParallelStrategy, HPUDeepSpeedStrategy)
         ):
             raise ValueError(
-                "The `HPUAccelerator` can only be used with a `SingleHPUStrategy` or `HPUParallelStrategy`,"
+                "The `HPUAccelerator` can only be used with a `SingleHPUStrategy` , `HPUParallelStrategy` or `HPUDeepSpeedStrategy`,"
                 f" found {self.strategy.__class__.__name__}."
             )
 
@@ -610,6 +615,7 @@ class _AcceleratorConnector:
             DeepSpeedStrategy,
             XLAStrategy,
             HPUParallelStrategy,
+            HPUDeepSpeedStrategy,
         )
         is_distributed = isinstance(self.strategy, distributed_strategy)
         if isinstance(self.accelerator, TPUAccelerator):
