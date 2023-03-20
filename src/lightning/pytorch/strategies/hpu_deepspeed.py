@@ -559,7 +559,7 @@ class HPUDeepSpeedStrategy(HPUParallelStrategy):
         remove_module_hooks(model)
 
         model, _, _, _ = deepspeed.initialize(
-            args=argparse.Namespace(device_rank=self.local_rank),#self.root_device.index), #jerome check this
+            args=argparse.Namespace(device_rank=self.local_rank, use_hpu=True),#self.root_device.index), #jerome check this
             config=inference_config,
             model=model,
             optimizer=None,
