@@ -9,7 +9,7 @@ pytest-rerunfailures ==12.0
 
 playwright ==1.36.0
 httpx ==0.24.1
-trio <0.22.0  # strict https://github.com/python-trio/trio/pull/2213
+trio <0.23.0  # strict https://github.com/python-trio/trio/pull/2213
 pympler
 psutil <5.10.0
 setuptools <68.1.0
